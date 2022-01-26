@@ -1,7 +1,8 @@
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 import os
 
 this_path = os.path.dirname(os.path.abspath(__file__))
+
 
 def parse():
 	parser = ConfigParser()

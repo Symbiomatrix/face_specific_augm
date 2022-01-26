@@ -8,22 +8,23 @@ import math
 def estimate_camera(model3D, fidu_XY, pose_db_on=False):
     if pose_db_on:
         rmat, tvec = calib_camera(model3D, fidu_XY, pose_db_on=True)
-        tvec = tvec.reshape(3,1)
+        tvec = tvec.reshape(3, 1)
     else:
         rmat, tvec = calib_camera(model3D, fidu_XY)
     RT = np.hstack((rmat, tvec))
     projection_matrix = model3D.out_A * RT
     return projection_matrix, model3D.out_A, rmat, tvec
 
+
 def calib_camera(model3D, fidu_XY, pose_db_on=False):
-    #compute pose using refrence 3D points + query 2D point
-    ## np.arange(68)+1 since matlab starts from 1
+    # compute pose using refrence 3D points + query 2D point
+    # # np.arange(68)+1 since matlab starts from 1
     if pose_db_on:
         rvecs = fidu_XY[0:3]
         tvec = fidu_XY[3:6]
     else:
-        goodind = np.setdiff1d(np.arange(68)+1, model3D.indbad)
-        goodind=goodind-1
+        goodind = np.setdiff1d(np.arange(68) + 1, model3D.indbad)
+        goodind = goodind - 1
         fidu_XY = fidu_XY[goodind,:]
         ret, rvecs, tvec = cv2.solvePnP(model3D.model_TD, fidu_XY, model3D.out_A, None, None, None, False)
     rmat, jacobian = cv2.Rodrigues(rvecs, None)
@@ -33,33 +34,34 @@ def calib_camera(model3D, fidu_XY, pose_db_on=False):
         tvec = -tvec
         t = np.pi
         RRz180 = np.asmatrix([np.cos(t), -np.sin(t), 0, np.sin(t), np.cos(t), 0, 0, 0, 1]).reshape((3, 3))
-        rmat = RRz180*rmat
+        rmat = RRz180 * rmat
     return rmat, tvec
+
 
 def get_yaw(rmat):
     modelview = rmat
-    modelview = np.zeros( (3,4 ))
-    modelview[0:3,0:3] = rmat.transpose()
+    modelview = np.zeros((3, 4))
+    modelview[0:3, 0:3] = rmat.transpose()
     modelview = modelview.reshape(12)
     # Code converted from function: getEulerFromRot()                                                                                                                                                                               
-    angle_y = -math.asin( modelview[2] )  # Calculate Y-axis angle                                                                                                                                                                       
-    C = math.cos( angle_y)
+    angle_y = -math.asin(modelview[2])  # Calculate Y-axis angle                                                                                                                                                                       
+    C = math.cos(angle_y)
     angle_y = math.degrees(angle_y)
 
-    if np.absolute(C) > 0.005: # Gimball lock?                                                                                                                                                                                           
-        trX = modelview[10] / C # No, so get X-axis angle                                                                                                                                                                                
+    if np.absolute(C) > 0.005:  # Gimball lock?                                                                                                                                                                                           
+        trX = modelview[10] / C  # No, so get X-axis angle                                                                                                                                                                                
         trY = -modelview[6] / C
-        angle_x = math.degrees( math.atan2( trY, trX ) )
+        angle_x = math.degrees(math.atan2(trY, trX))
 
         trX = modelview[0] / C  # Get z-axis angle                                                                                                                                                                                       
-        trY = - modelview[1] / C
-        angle_z = math.degrees(  math.atan2( trY, trX) )
+        trY = -modelview[1] / C
+        angle_z = math.degrees(math.atan2(trY, trX))
     else:
         # Gimball lock has occured                                                                                                                                                                                                       
         angle_x = 0
         trX = modelview[5]
         trY = modelview[4]
-        angle_z = math.degrees(  math.atan2( trY, trX) )
+        angle_z = math.degrees(math.atan2(trY, trX))
 
     # Adjust to current mesh setting                                                                                                                                                                                                     
     angle_x = 180 - angle_x
@@ -74,14 +76,14 @@ def get_yaw(rmat):
 
 
 def get_opengl_matrices(camera_matrix, rmat, tvec, width, height):
-    projection_matrix = np.asmatrix(np.zeros((4,4)))
+    projection_matrix = np.asmatrix(np.zeros((4, 4)))
     near_plane = 0.0001
     far_plane = 10000
 
-    fx = camera_matrix[0,0]
-    fy = camera_matrix[1,1]
-    px = camera_matrix[0,2]
-    py = camera_matrix[1,2]
+    fx = camera_matrix[0, 0]
+    fy = camera_matrix[1, 1]
+    px = camera_matrix[0, 2]
+    py = camera_matrix[1, 2]
 
     projection_matrix[0, 0] = 2.0 * fx / width
     projection_matrix[1, 1] = 2.0 * fy / height
@@ -92,10 +94,10 @@ def get_opengl_matrices(camera_matrix, rmat, tvec, width, height):
     projection_matrix[2, 3] = -2.0 * far_plane * near_plane / (far_plane - near_plane)
 
     deg = 180
-    t = deg*np.pi/180.
-    RRz=np.asmatrix([np.cos(t), -np.sin(t), 0, np.sin(t), np.cos(t), 0, 0, 0, 1]).reshape((3, 3))
-    RRy=np.asmatrix([np.cos(t), 0, np.sin(t), 0, 1, 0, -np.sin(t), 0, np.cos(t)]).reshape((3, 3))
-    rmat=RRz*RRy*rmat
+    t = deg * np.pi / 180.
+    RRz = np.asmatrix([np.cos(t), -np.sin(t), 0, np.sin(t), np.cos(t), 0, 0, 0, 1]).reshape((3, 3))
+    RRy = np.asmatrix([np.cos(t), 0, np.sin(t), 0, 1, 0, -np.sin(t), 0, np.cos(t)]).reshape((3, 3))
+    rmat = RRz * RRy * rmat
 
     mv = np.asmatrix(np.zeros((4, 4)))
     mv[0:3, 0:3] = rmat
@@ -109,48 +111,48 @@ def get_opengl_matrices(camera_matrix, rmat, tvec, width, height):
 def extract_frustum(camera_matrix, rmat, tvec, width, height):
     mv, proj = get_opengl_matrices(camera_matrix, rmat, tvec, width, height)
     clip = proj * mv
-    frustum = np.asmatrix(np.zeros((6 ,4)))
-    #/* Extract the numbers for the RIGHT plane */
-    frustum[0, :] = clip[3, :] - clip[0, :]
-    #/* Normalize the result */
-    v = frustum[0, :3]
+    frustum = np.asmatrix(np.zeros((6 , 4)))
+    # /* Extract the numbers for the RIGHT plane */
+    frustum[0,:] = clip[3,:] - clip[0,:]
+    # /* Normalize the result */
+    v = frustum[0,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[0, :] = frustum[0, :]/t
+    frustum[0,:] = frustum[0,:] / t
 
-    #/* Extract the numbers for the LEFT plane */
-    frustum[1, :] = clip[3, :] + clip[0, :]
-    #/* Normalize the result */
-    v = frustum[1, :3]
+    # /* Extract the numbers for the LEFT plane */
+    frustum[1,:] = clip[3,:] + clip[0,:]
+    # /* Normalize the result */
+    v = frustum[1,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[1, :] = frustum[1, :]/t
+    frustum[1,:] = frustum[1,:] / t
 
-    #/* Extract the BOTTOM plane */
-    frustum[2, :] = clip[3, :] + clip[1, :]
-    #/* Normalize the result */
-    v = frustum[2, :3]
+    # /* Extract the BOTTOM plane */
+    frustum[2,:] = clip[3,:] + clip[1,:]
+    # /* Normalize the result */
+    v = frustum[2,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[2, :] = frustum[2, :]/t
+    frustum[2,:] = frustum[2,:] / t
 
-    #/* Extract the TOP plane */
-    frustum[3, :] = clip[3, :] - clip[1, :]
-    #/* Normalize the result */
-    v = frustum[3, :3]
+    # /* Extract the TOP plane */
+    frustum[3,:] = clip[3,:] - clip[1,:]
+    # /* Normalize the result */
+    v = frustum[3,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[3, :] = frustum[3, :]/t
+    frustum[3,:] = frustum[3,:] / t
 
-    #/* Extract the FAR plane */
-    frustum[4, :] = clip[3, :] - clip[2, :]
-    #/* Normalize the result */
-    v = frustum[4, :3]
+    # /* Extract the FAR plane */
+    frustum[4,:] = clip[3,:] - clip[2,:]
+    # /* Normalize the result */
+    v = frustum[4,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[4, :] = frustum[4, :]/t
+    frustum[4,:] = frustum[4,:] / t
 
-    #/* Extract the NEAR plane */
-    frustum[5, :] = clip[3, :] + clip[2, :]
-    #/* Normalize the result */
-    v = frustum[5, :3]
+    # /* Extract the NEAR plane */
+    frustum[5,:] = clip[3,:] + clip[2,:]
+    # /* Normalize the result */
+    v = frustum[5,:3]
     t = np.sqrt(np.sum(np.multiply(v, v)))
-    frustum[5, :] = frustum[5, :]/t
+    frustum[5,:] = frustum[5,:] / t
     return frustum
 
 
